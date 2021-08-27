@@ -1,0 +1,50 @@
+<html>
+
+<head>
+    <title>Dot Helper</title>
+</head>
+
+<body>
+    <h1>Dot Helper</h1>
+    <button type="button" id="nSwitchMode" name="nSwitchMode" onclick="SwitchMode()">Full Production Mode</button>
+    <button type="button" id="nPlay" name="nPlay" onclick="PlayButton()" hidden>Play</button>
+    <h3 id="nPlaySet" hidden>FROM SET NULL TO SET NULL</h3>
+    <h3 id="nPlayCount" hidden>COUNT: NULL</h3>
+
+    <div id="football-field"></div>
+    <!-- -->
+    <div id="individual-stuff">
+        <h2>Enter the following information as how it appears on your drill sheet!</h2>
+        <label for="setMsg">Set:</label>
+        <input type="text" id="setMsg" name="setMsg" /><br>
+        <label for="countsMsg">Counts:</label>
+        <input type="text" id="countsMsg" name="countsMsg" /><br>
+        <label for="lrMsg">Left to right:</label>
+        <input type="text" id="lrMsg" name="lrMsg" /><br>
+        <label for="fbMsg">Front to back:</label>
+        <input type="text" id="fbMsg" name="fbMsg" />
+        <button type="button" onclick="AddDotButton()">Add Dot</button>
+        <br />
+        <h2>Calculating midsets</h2>
+        <label for="midMsg">Enter the start set #:</label>
+        <input type="text" id="midMsg" name="midMsg" />
+        <button type="button" onclick="CalcMidsetButton()">Calculate Midset</button><br />
+        <h3 id="midMsgOutput"></h3>
+        <br />
+    </div> <!-- -->
+    <h2>Misc</h2>
+    <label for="nExport">Export Drill Data</label>
+    <button type="button" id="nExport" name="nExport" onclick="ExportDrill()">Export</button><br />
+    <label for="importdrill">Import Drill Data</label>
+    <input type="file" id="importdrill" name="importdrill"></button><br /><br />
+    <a id="exportdrill" style="display:none;"></a>
+    <h3 id="nStepStatus">Default View</h3>
+    <button type="button" id="nStep" name="nStep" onclick="StepByStep()">Show Set By Set</button>
+    <button type="button" id="nPrevSet" name="nPrevSet" onclick="StepPrevSet()" disabled>Previous Set</button>
+    <button type="button" id="nNextSet" name="nNextSet" onclick="StepNextSet()" disabled>Next Set</button><br />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <script src="dothelper.js"></script>
+</body>
+
+</html>
