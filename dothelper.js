@@ -353,7 +353,7 @@ class Dot {
         return (-this.fronttoback + (FIELD_WIDTH / 2)) * DRAW_SCALE_FACTOR;
     }
 
-    show() {
+    show(lbl) {
         if (stepMode && !showMode) {
             if (this.privateID != stepCurrent && this.privateID != stepCurrent + 1) return;
         }
@@ -362,6 +362,14 @@ class Dot {
         strokeWeight(DRAW_SCALE_FACTOR * 0.75);
 
         point(this.GetDisplayX(), this.GetDisplayY());
+
+        if (showMode && document.getElementById("nShowLabels").checked) {
+            textSize(DRAW_SCALE_FACTOR);
+            strokeWeight(1);
+            textAlign(CENTER, CENTER)
+            fill(0, 0, 0);
+            text(lbl, this.GetDisplayX(), this.GetDisplayY());
+        }
 
         if (showMode) return;
         if (stepMode && this.privateID != stepCurrent) return;
@@ -461,8 +469,8 @@ class Performer {
     }
 
     show() {
-        if (!playMode) this.dots[stepCurrent].show();
-        else this.DrawModeDot(playManager.delta / playManager.timeDuration).show();
+        if (!playMode) this.dots[stepCurrent].show(this.label);
+        else this.DrawModeDot(playManager.delta / playManager.timeDuration).show(this.label);
     }
 
     DrawModeDot(prg) {
@@ -673,6 +681,8 @@ function SwitchMode() {
     document.getElementById("nPlay").hidden = !showMode;
     document.getElementById("nPlaySet").hidden = !showMode;
     document.getElementById("nPlayCount").hidden = !showMode;
+    document.getElementById("nShowLabels").hidden = !showMode;
+    document.getElementById("nLabelLabel").hidden = !showMode;
 
     document.getElementById("individual-stuff").hidden = showMode;
 
