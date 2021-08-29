@@ -354,6 +354,8 @@ class Dot {
     }
 
     show(lbl) {
+        if (this.set == "-1") return;
+
         if (stepMode && !showMode) {
             if (this.privateID != stepCurrent && this.privateID != stepCurrent + 1) return;
         }
@@ -469,8 +471,15 @@ class Performer {
     }
 
     show() {
-        if (!playMode) this.dots[stepCurrent].show(this.label);
-        else this.DrawModeDot(playManager.delta / playManager.timeDuration).show(this.label);
+
+        if (!playMode) {
+            if (this.dots[stepCurrent].set == "-1") return;
+            this.dots[stepCurrent].show(this.label);
+        }
+        else {
+            if (this.dots[playManager.currDot].set == "-1") return;
+            this.DrawModeDot(playManager.delta / playManager.timeDuration).show(this.label);
+        }
     }
 
     DrawModeDot(prg) {
@@ -496,8 +505,8 @@ class PlayManager {
 
     Setup() {
         this.tempo = this.program[0].tempo;
-        this.currDot = 0;
-        this.nextDot = 1;
+        this.currDot = stepMode ? stepCurrent : 0;
+        this.nextDot = this.currDot + 1;
         this.timeStart = Date.now();
         this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
     }
