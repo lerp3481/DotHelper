@@ -461,6 +461,7 @@ class Program {
     constructor() {
         this.startSet = null;
         this.tempo = null;
+        this.tempoMode = null;
     }
 }
 
@@ -501,10 +502,28 @@ class PlayManager {
         this.timeStart = 0;
         this.timeDuration = 0;
         this.delta = 0;
+        this.playProgramStep = 0;
     }
 
     Setup() {
-        this.tempo = this.program[0].tempo;
+        this.playProgramStep = 0;
+        this.tempo = this.program[this.playProgramStep].tempo;
+
+        //How to cheat dynamic tempo changes
+        if (this.program[this.playProgramStep].tempoMode == "dynamicStart") {
+            var tempoStart = this.tempo;
+
+            var i = this.playProgramStep + 1;
+            while (this.program[i].tempoMode != "dynamicEnd") {
+                i++;
+            }
+
+            var tempoEnd = this.program[i].tempo;
+
+            this.tempo = (tempoStart + tempoEnd) / 2;
+        }
+
+        this.playProgramStep++;
         this.currDot = stepMode ? stepCurrent : 0;
         this.nextDot = this.currDot + 1;
         this.timeStart = Date.now();
@@ -515,6 +534,28 @@ class PlayManager {
         this.currDot++;
         if (this.currDot + 1 < this.performers[0].dots.length) this.nextDot++;
         if (this.currDot >= this.nextDot) playMode = false;
+
+        if (this.program[this.playProgramStep] != null) {
+            if (this.program[this.playProgramStep].startSet == this.GetSetName(this.currDot)) {
+                this.tempo = this.program[this.playProgramStep].tempo;
+
+                if (this.program[this.playProgramStep].tempoMode == "dynamicStart") {
+                    var tempoStart = this.tempo;
+
+                    var i = this.playProgramStep + 1;
+                    while (this.program[i].tempoMode != "dynamicEnd") {
+                        i++;
+                    }
+
+                    var tempoEnd = this.program[i].tempo;
+
+                    this.tempo = (tempoStart + tempoEnd) / 2;
+                }
+
+                this.playProgramStep++;
+            }
+        }
+
         this.timeStart = Date.now();
         this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
     }
@@ -610,6 +651,7 @@ document.querySelector('#importdrill').addEventListener("change", function () {
                 var prg = new Program();
                 prg.startSet = funny.program[i].startSet;
                 prg.tempo = funny.program[i].tempo;
+                prg.tempoMode = funny.program[i].tempoMode;
                 playManager.program.push(prg);
             }
         }
@@ -636,7 +678,7 @@ function StepByStep() {
         if (showMode && stepCurrent + 2 >= playManager.performers[0].dots.length) document.getElementById('nNextSet').disabled = true;
     }
 
-    if (showMode) {
+    if (!showMode) {
         document.getElementById("midMsg").value = drill.GetSetName(stepCurrent);
         CalcMidsetButton();
     }
