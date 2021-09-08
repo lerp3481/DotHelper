@@ -832,7 +832,7 @@ function SwitchMode() {
     document.getElementById("nPlay").hidden = !showMode;
     document.getElementById("nPlaySet").hidden = !showMode;
     document.getElementById("nPlayCount").hidden = !showMode;
-    document.getElementById("nPlayTempo").hidden = !showMode;
+    //document.getElementById("nPlayTempo").hidden = !showMode;
     document.getElementById("nShowLabels").hidden = !showMode;
     document.getElementById("nLabelLabel").hidden = !showMode;
 
