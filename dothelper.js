@@ -459,8 +459,7 @@ class Drill {
 
 class Program {
     constructor() {
-        this.startSet = null;
-        this.startCount = null;
+        this.absoluteStartCount = null;
         this.tempo = null;
         this.tempoMode = null;
     }
@@ -486,8 +485,19 @@ class Performer {
 
     DrawModeDot(prg) {
         var ret = new Dot();
-        ret.lefttoright = this.dots[playManager.currDot].lefttoright + ((this.dots[playManager.nextDot].lefttoright - this.dots[playManager.currDot].lefttoright) * prg);
-        ret.fronttoback = this.dots[playManager.currDot].fronttoback + ((this.dots[playManager.nextDot].fronttoback - this.dots[playManager.currDot].fronttoback) * prg);
+
+        var currLR = this.dots[playManager.currDot].lefttoright;
+        var currFB = this.dots[playManager.currDot].fronttoback;
+        var nextLR = this.dots[playManager.nextDot].lefttoright;
+        var nextFB = this.dots[playManager.nextDot].fronttoback;
+
+        var startLR = currLR + ((nextLR - currLR) * ((playManager.count - 1) / playManager.GetNextDot().counts));
+        var startFB = currFB + ((nextFB - currFB) * ((playManager.count - 1) / playManager.GetNextDot().counts));
+        var endLR = currLR + ((nextLR - currLR) * (playManager.count / playManager.GetNextDot().counts));
+        var endFB = currFB + ((nextFB - currFB) * (playManager.count / playManager.GetNextDot().counts));
+
+        ret.lefttoright = startLR + (endLR - startLR) * prg;
+        ret.fronttoback = startFB + (endFB - startFB) * prg;
         return ret;
     }
 }
@@ -504,39 +514,50 @@ class PlayManager {
         this.timeDuration = 0;
         this.delta = 0;
         this.playProgramStep = 0;
-        this.count = 0;
+        this.absoluteCount = 0;
         this.oldCount = 0;
+        this.count = 0
     }
 
     Setup() {
         this.currDot = stepMode ? stepCurrent : 0;
         this.nextDot = this.currDot + 1;
+        this.oldCount = this.count = 1;
+        this.absoluteCount = this.CalculateAbsoluteCount(this.GetCurrentDot().set);
 
-        this.count = 1;
-
-        var i = this.currDot;
+        this.playProgramStep = 0;
         while (true) {
-            this.playProgramStep = 0;
-            while (this.program[this.playProgramStep].startSet != this.GetSetName(i)) {
-                this.playProgramStep++;
-                if (this.playProgramStep >= this.program.length) {
+            if (this.program[this.playProgramStep] != null) {
+                if (this.program[this.playProgramStep + 1] != null) {
+                    if (this.program[this.playProgramStep + 1].absoluteStartCount < this.absoluteCount) {
+                        this.playProgramStep++;
+                    }
+                    else {
+                        break;
+                    }
+                }
+                else {
                     break;
                 }
             }
-            if (this.playProgramStep >= this.program.length) {
-                i--;
-                continue;
-            }
-            while (this.program[this.playProgramStep + 1].startSet == this.GetSetName(i)) {
-                this.playProgramStep++;
-            }
-            break;
         }
+
+        this.delta = 0;
+        this.oldCount = this.count = 1;
+        this.HandleProgram();
+
+        this.timeStart = Date.now();
+        this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
+    }
+
+    HandleProgram() {
         this.tempo = this.program[this.playProgramStep].tempo;
+
+        //How to cheat dynamic tempo changes
         if (this.program[this.playProgramStep].tempoMode == "dynamicStart") {
             var tempoStart = this.tempo;
 
-            i = this.playProgramStep + 1;
+            var i = this.playProgramStep + 1;
             while (this.program[i].tempoMode != "dynamicEnd") {
                 i++;
             }
@@ -545,130 +566,80 @@ class PlayManager {
 
             this.tempo = (tempoStart + tempoEnd) / 2;
         }
+
         this.playProgramStep++;
+    }
 
-        this.CalculateTimeDuration();
+    GetCurrentDot() {
+        return this.performers[0].dots[this.currDot];
+    }
+
+    GetNextDot() {
+        return this.performers[0].dots[this.nextDot];
+    }
+
+    GetCurrentProgram() {
+        return this.program[this.playProgramStep];
+    }
+
+    OnTick() {
+        //When the "counts" value updates
+        if (this.count > this.GetNextDot().counts) {
+            //New set!
+            this.currDot++;
+            if (this.currDot + 1 < this.performers[0].dots.length) this.nextDot++;
+            if (this.currDot >= this.nextDot) playMode = false;
+            this.count = 1;
+        }
+
+        if (this.GetCurrentProgram() != null) {
+            if (this.GetCurrentProgram().absoluteStartCount == this.absoluteCount) {
+                this.HandleProgram();
+            }
+        }
+
         this.timeStart = Date.now();
+        this.timeDuration = 60000 / this.tempo;
     }
 
-    CalculateTimeDuration() {
-        /*
-        //this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
-        var i = this.playProgramStep;
-        var j = this.tempo;
-        var k = -1;
-        while (this.program[i].startSet == this.GetSetName(this.currDot)) {
-            this.timeDuration += ((this.program[i].startCount - k) / j) * 60000;
-
-            k = this.program[i].startCount;
+    CalculateAbsoluteCount(setName) {
+        var i = 0;
+        var ret = 0;
+        while (this.GetSetName(i) != setName) {
             i++;
-            if (i >= this.program.length) break;
-            j = this.program[i].tempo;
+            ret += this.performers[0].dots[i].counts;
         }
-        if (this.timeDuration == 0) {
-            this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
-        }
-        else {/*
-            if (i < this.program.length) {
-                this.timeDuration += ((this.performers[0].dots[this.currDot].counts + 1 - this.program[i].startCount) / j) + 60000;
-            }*/
-        /* //bc vscode is funny
-        console.log("TEST: " + this.timeDuration);
-    }*/
-        this.timeDuration = -1;
-
-        var currentStep = this.playProgramStep;
-        var currentTempo = this.tempo;
-        var countSubtractor = 1;
-
-        if (currentStep >= this.program.length) {
-            this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
-            return;
-        }
-        while (this.program[currentStep].startSet == this.GetSetName(this.currDot)) {
-            //Okay, this program will take effect during this set.
-            this.timeDuration += ((this.program[currentStep].startCount - countSubtractor) / currentTempo) * 60000;
-
-            countSubtractor = this.program[currentStep].startCount;
-            if (this.program[currentStep].tempoMode == "dynamicStart") {
-                var tempoStart = this.program[currentStep].tempo;
-
-                var i = currentStep + 1;
-                while (this.program[i].tempoMode != "dynamicEnd") {
-                    i++;
-                }
-
-                var tempoEnd = this.program[i].tempo;
-
-                currentTempo = (tempoStart + tempoEnd) / 2;
-            }
-            else {
-                currentTempo = this.program[currentStep].tempo;
-            }
-
-            currentStep++;
-            if (currentStep >= this.program.length) break;
-        }
-        if (this.timeDuration == -1) {
-            this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
-            return;
-        }
-        else {
-            if (currentStep < this.program.length) {
-                this.timeDuration += ((this.performers[0].dots[this.nextDot].counts + 1 - countSubtractor) / currentTempo) * 60000;
-            }
-        }
+        return ret + 1;
     }
 
-    NewSet() {
+    /*NewSet() {
         this.currDot++;
         if (this.currDot + 1 < this.performers[0].dots.length) this.nextDot++;
         if (this.currDot >= this.nextDot) playMode = false;
-        this.count = 1;
-
-        this.CalculateTimeDuration();
         this.timeStart = Date.now();
-    }
+        this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
+    }*/
 
     Update() {
         this.delta = Date.now() - this.timeStart;
+
         if (this.delta >= this.timeDuration) {
-            this.NewSet();
+            this.count++;
+            this.absoluteCount++;
+        }
+
+        var _count = Math.floor((this.delta * this.tempo) / 60000) + 1;
+        if (_count != this.oldCount) {
+            this.OnTick();
             this.delta = Date.now() - this.timeStart;
         }
-
-        this.oldCount = Math.floor((this.delta * this.tempo) / 60000) + 1;
-        //this.oldCount = Math.floor((this.delta / this.timeDuration) * this.performers[0].dots[this.nextDot].counts) + 1;
-
-        if (this.count != this.oldCount) {
-            if (this.program[this.playProgramStep] != null) {
-                if (this.program[this.playProgramStep].startSet == this.GetSetName(this.currDot)) {
-                    if (this.program[this.playProgramStep].startCount == this.count) {
-                        this.tempo = this.program[this.playProgramStep].tempo;
-
-                        if (this.program[this.playProgramStep].tempoMode == "dynamicStart") {
-                            var tempoStart = this.tempo;
-
-                            var i = this.playProgramStep + 1;
-                            while (this.program[i].tempoMode != "dynamicEnd") {
-                                i++;
-                            }
-
-                            var tempoEnd = this.program[i].tempo;
-
-                            this.tempo = (tempoStart + tempoEnd) / 2;
-                        }
-                        this.playProgramStep++;
-                    }
-                }
-            }
-        }
-
-        this.count = Math.floor((this.delta * this.tempo) / 60000) + 1;
 
         document.getElementById("nPlaySet").innerHTML = "FROM SET " + this.GetSetName(this.currDot) + " TO SET " + this.GetSetName(this.nextDot);
         document.getElementById("nPlayCount").innerHTML = "COUNT: " + this.count;
         document.getElementById("nPlayTempo").innerHTML = "TEMPO: " + this.tempo;
+
+        this.oldCount = _count;
+
         drawing = true;
     }
 
@@ -748,8 +719,7 @@ document.querySelector('#importdrill').addEventListener("change", function () {
             }
             for (var i = 0; i < funny.program.length; i++) {
                 var prg = new Program();
-                prg.startSet = funny.program[i].startSet;
-                prg.startCount = funny.program[i].startCount;
+                prg.absoluteStartCount = funny.program[i].absoluteStartCount;
                 prg.tempo = funny.program[i].tempo;
                 prg.tempoMode = funny.program[i].tempoMode;
                 playManager.program.push(prg);
