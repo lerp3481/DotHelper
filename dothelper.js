@@ -515,14 +515,12 @@ class PlayManager {
         this.delta = 0;
         this.playProgramStep = 0;
         this.absoluteCount = 0;
-        this.oldCount = 0;
         this.count = 0
     }
 
     Setup() {
         this.currDot = stepMode ? stepCurrent : 0;
         this.nextDot = this.currDot + 1;
-        this.oldCount = this.count = 1;
         this.absoluteCount = this.CalculateAbsoluteCount(this.GetCurrentDot().set);
 
         this.playProgramStep = 0;
@@ -543,11 +541,11 @@ class PlayManager {
         }
 
         this.delta = 0;
-        this.oldCount = this.count = 1;
+        this.count = 1;
         this.HandleProgram();
 
         this.timeStart = Date.now();
-        this.timeDuration = ((this.performers[0].dots[this.nextDot].counts) / this.tempo) * 60000;
+        this.timeDuration = 60000 / this.tempo;
     }
 
     HandleProgram() {
@@ -626,10 +624,7 @@ class PlayManager {
         if (this.delta >= this.timeDuration) {
             this.count++;
             this.absoluteCount++;
-        }
 
-        var _count = Math.floor((this.delta * this.tempo) / 60000) + 1;
-        if (_count != this.oldCount) {
             this.OnTick();
             this.delta = Date.now() - this.timeStart;
         }
@@ -637,8 +632,6 @@ class PlayManager {
         document.getElementById("nPlaySet").innerHTML = "FROM SET " + this.GetSetName(this.currDot) + " TO SET " + this.GetSetName(this.nextDot);
         document.getElementById("nPlayCount").innerHTML = "COUNT: " + this.count;
         document.getElementById("nPlayTempo").innerHTML = "TEMPO: " + this.tempo;
-
-        this.oldCount = _count;
 
         drawing = true;
     }
