@@ -1208,7 +1208,7 @@ function DotBookPage(dot, previousDot, performerLabel) {
 
     pg.image(dotField, 20, 140);
 
-    pg.save(performerLabel.label + " set " + dot.set + ".png");
+    //pg.save(performerLabel.label + " set " + dot.set + ".png");
     image(pg, 0, 0);
 }
 
