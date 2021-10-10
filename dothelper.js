@@ -1214,7 +1214,7 @@ function DotBookPage(dot, previousDot, performerLabel) {
 
 function MakeDotBook() {
     if (showMode) {
-        dotBookMode = !dotBookMode;
+        dotBookMode = true;
         var bookPerformer = playManager.GetPerformerByLabel(document.getElementById("nMakeDotBook").value);
         //for (var i = 0; i < bookPerformer.dots.length; i++) {
         var i = stepCurrent;
