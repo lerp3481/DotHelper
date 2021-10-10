@@ -41,10 +41,17 @@
     <label for="importdrill">Import Drill Data</label>
     <input type="file" id="importdrill" name="importdrill"></button><br /><br />
     <a id="exportdrill" style="display:none;"></a>
+    <label for="nMakeDotBook">Performer</label>
+    <input type="text" id="nMakeDotBook" name="nMakeDotBook" />
+    <button type="button" onclick="MakeDotBook()">Make Dot Book</button>
     <h3 id="nStepStatus">Default View</h3>
     <button type="button" id="nStep" name="nStep" onclick="StepByStep()">Show Set By Set</button>
     <button type="button" id="nPrevSet" name="nPrevSet" onclick="StepPrevSet()" disabled>Previous Set</button>
     <button type="button" id="nNextSet" name="nNextSet" onclick="StepNextSet()" disabled>Next Set</button><br />
+    <label for="countSlider">Count Slider</label>
+    <input type="range" min="1" max="100" value="1" step="any" autocomplete="off" id="countSlider"
+        oninput="HandleSlider(this.value)" />
+    <input type="text" id="countSliderText" value="1" autocomplete="off" oninput="HandleTextSlider(this.value)" />
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
     <script src="dothelper.js"></script>

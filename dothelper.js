@@ -2,11 +2,20 @@ const FIELD_LENGTH = 160;
 const FIELD_WIDTH = 84;
 const DRAW_SCALE_FACTOR = 10;
 
+const BACK_SIDELINE = 0;
+const BACK_HASH = 1;
+const FRONT_HASH = 2;
+const FRONT_SIDELINE = 3;
+
 var drill;
 var drawing = true;
 
 var stepMode = false;
 var stepCurrent = 0;
+
+var dotBookMode = false;
+
+var sliderCount = 1;
 
 var showMode = false;
 var playMode = false;
@@ -32,6 +41,7 @@ function draw() {
     image(canvasField, 0, 0);
     if (!showMode) drill.show();
     else playManager.show();
+    if (dotBookMode) MakeDotBook();
     drawing = false;
     if (showMode && playMode) playManager.Update();
 }
@@ -289,6 +299,23 @@ class Dot {
         return ret;
     }
 
+    GetNearestYardLine() {
+        var side1 = this.lefttoright <= 0;
+        var lr = side1 ? -this.lefttoright : this.lefttoright;
+
+        var deviation = lr % 8;
+        var baseYardLineOut = 50 - ((lr - deviation) / 8) * 5;
+        var baseYardLineIn = 50 - (((lr - deviation) / 8) + 1) * 5;
+
+        if (deviation == 0) return baseYardLineOut;
+        else if (deviation < 4.0) return baseYardLineOut;
+        else return baseYardLineIn;
+    }
+
+    IsSide1() {
+        return this.lefttoright <= 0;
+    }
+
     FrontToBackToString(fb) {
         var ret = "";
         var baseReference = "";
@@ -339,6 +366,44 @@ class Dot {
 
         ret = deviation + " " + deviationDirection + baseReference;
         return ret;
+    }
+
+    GetNearestFrontToBackReference() {
+        var closerToAudience = this.fronttoback <= 0;
+        var fb = this.fronttoback <= 0 ? -this.fronttoback : this.fronttoback;
+
+        //Closer to hash or sideline?
+        if (Math.abs(fb - (FIELD_WIDTH / 2)) < Math.abs(fb - 10)) {
+            //Sideline is closer
+            return closerToAudience ? FRONT_SIDELINE : BACK_SIDELINE;
+        }
+        else {
+            //Hash is closer
+            return closerToAudience ? FRONT_HASH : BACK_HASH;
+        }
+    }
+
+    GetDeviationFromFrontToBackReference() {
+        var closerToAudience = this.fronttoback <= 0;
+        var fb = this.fronttoback <= 0 ? -this.fronttoback : this.fronttoback;
+        // in front = negative deviation
+
+        //Closer to hash or sideline?
+        if (Math.abs(fb - (FIELD_WIDTH / 2)) < Math.abs(fb - 10)) {
+            //Sideline is closer
+            var deviation = Math.abs(fb - (FIELD_WIDTH / 2));
+            return closerToAudience ? deviation : -deviation;
+        }
+        else {
+            //Hash is closer
+            var deviation = Math.abs(fb - 10);
+            if (fb < 10) {
+                return closerToAudience ? deviation : -deviation;
+            }
+            else {
+                return closerToAudience ? -deviation : deviation;
+            }
+        }
     }
 
     Stringify() {
@@ -475,12 +540,27 @@ class Performer {
 
         if (!playMode) {
             if (this.dots[stepCurrent].set == "-1") return;
-            this.dots[stepCurrent].show(this.label);
+            this.SlideModeDot().show(this.label);
         }
         else {
             if (this.dots[playManager.currDot].set == "-1") return;
             this.DrawModeDot(playManager.delta / playManager.timeDuration).show(this.label);
         }
+    }
+
+    SlideModeDot() {
+        var ret = new Dot();
+
+        var currLR = this.dots[stepCurrent].lefttoright;
+        var currFB = this.dots[stepCurrent].fronttoback;
+        var nextLR = this.dots[stepCurrent + 1].lefttoright;
+        var nextFB = this.dots[stepCurrent + 1].fronttoback;
+
+        var prg = (sliderCount - 1) / (document.getElementById("countSlider").max - 1);
+
+        ret.lefttoright = currLR + (nextLR - currLR) * prg;
+        ret.fronttoback = currFB + (nextFB - currFB) * prg;
+        return ret;
     }
 
     DrawModeDot(prg) {
@@ -578,6 +658,11 @@ class PlayManager {
 
     GetCurrentProgram() {
         return this.program[this.playProgramStep];
+    }
+
+    GetCounts(dNum) {
+        if (dNum >= this.performers[0].dots.length) return null;
+        return this.performers[0].dots[dNum].counts;
     }
 
     OnTick() {
@@ -734,6 +819,10 @@ function StepByStep() {
     if (!showMode) document.getElementById('nStepStatus').innerHTML = stepMode ? ("From " + drill.GetSetName(stepCurrent) + " to " + drill.GetSetName(stepCurrent + 1)) : "Default View";
     else {
         document.getElementById('nStepStatus').innerHTML = stepMode ? ("From " + playManager.GetSetName(stepCurrent) + " to " + playManager.GetSetName(stepCurrent + 1)) : "Default View";
+        sliderCount = 1;
+        document.getElementById("countSlider").max = playManager.GetCounts(stepCurrent + 1) + 1;
+        document.getElementById("countSliderText").value = 1;
+        document.getElementById("countSlider").value = 1;
     }
 
     if (stepMode) {
@@ -760,6 +849,10 @@ function StepNextSet() {
     }
     else {
         if (stepCurrent + 2 >= playManager.performers[0].dots.length) document.getElementById('nNextSet').disabled = true;
+        sliderCount = 1;
+        document.getElementById("countSlider").max = playManager.GetCounts(stepCurrent + 1) + 1;
+        document.getElementById("countSliderText").value = 1;
+        document.getElementById("countSlider").value = 1;
     }
 
     if (!showMode) {
@@ -773,14 +866,24 @@ function StepNextSet() {
 function StepPrevSet() {
     stepCurrent--;
     document.getElementById('nNextSet').disabled = false;
-    if (showMode) document.getElementById('nStepStatus').innerHTML = "From " + playManager.GetSetName(stepCurrent) + " to " + playManager.GetSetName(stepCurrent + 1);
-    else document.getElementById('nStepStatus').innerHTML = "From " + drill.GetSetName(stepCurrent) + " to " + drill.GetSetName(stepCurrent + 1);
+    if (showMode) {
+        document.getElementById('nStepStatus').innerHTML = "From " + playManager.GetSetName(stepCurrent) + " to " + playManager.GetSetName(stepCurrent + 1);
+        sliderCount = 1;
+        document.getElementById("countSlider").max = playManager.GetCounts(stepCurrent + 1) + 1;
+        document.getElementById("countSliderText").value = 1;
+        document.getElementById("countSlider").value = 1;
+    }
+    else {
+        document.getElementById('nStepStatus').innerHTML = "From " + drill.GetSetName(stepCurrent) + " to " + drill.GetSetName(stepCurrent + 1);
+    }
     if (stepCurrent == 0) document.getElementById('nPrevSet').disabled = true;
 
     if (!showMode) {
         document.getElementById("midMsg").value = drill.GetSetName(stepCurrent);
         CalcMidsetButton();
     }
+
+    sliderCount = 1;
 
     drawing = true;
 }
@@ -810,5 +913,340 @@ function SwitchMode() {
 function PlayButton() {
     playManager.Setup();
     playMode = !playMode;
+    drawing = true;
+}
+
+function DotBookPage(dot, previousDot, performerLabel) {
+    var pg = createGraphics(600, 500);
+
+    pg.background(100)
+
+    //Make chart # layout
+    pg.rect(20, 20, 150, 50);
+    pg.textAlign(CENTER, CENTER);
+    pg.textSize(48);
+    pg.text(dot.set, 95, 45);
+
+    //Make counts layout
+    pg.rect(20, 80, 150, 50);
+    pg.text(dot.counts, 95, 105);
+
+    //Make coordinate layout
+    pg.rect(180, 20, 400, 110);
+    pg.textSize(16);
+    pg.textAlign(LEFT, CENTER);
+    var sameFlag = false;
+    if (previousDot != null) {
+        if (previousDot.lefttoright == dot.lefttoright && previousDot.fronttoback == dot.fronttoback) {
+            sameFlag = true;
+            pg.text("<SAME>", 200, 45);
+            pg.text("<SAME>", 200, 105);
+        }
+        else {
+            pg.text(dot.LeftToRightToString(dot.lefttoright), 200, 45);
+            pg.text(dot.FrontToBackToString(dot.fronttoback), 200, 105);
+        }
+    }
+    else {
+        pg.text(dot.LeftToRightToString(dot.lefttoright), 200, 45);
+        pg.text(dot.FrontToBackToString(dot.fronttoback), 200, 105);
+    }
+
+    //Make midset layout
+    pg.rect(310, 140, 270, 150);
+    var midpoint = null;
+    if (sameFlag || previousDot == null) {
+        pg.text("----", 330, 155);
+        pg.text("----", 330, 265);
+    }
+    else {
+        midpoint = new Dot();
+        midpoint.lefttoright = (previousDot.lefttoright + dot.lefttoright) / 2;
+        midpoint.fronttoback = (previousDot.fronttoback + dot.fronttoback) / 2;
+        pg.text(midpoint.LeftToRightToString(midpoint.lefttoright), 330, 155);
+        pg.text(midpoint.FrontToBackToString(midpoint.fronttoback), 330, 265);
+    }
+
+    //Make graph layout
+    const GRAPH_SCALE_FACTOR = 7;
+    const GRAPH_FIELD_LENGTH = 40;
+    const GRAPH_FIELD_WIDTH = 32;
+    pg.rect(20, 140, GRAPH_FIELD_LENGTH * GRAPH_SCALE_FACTOR, GRAPH_FIELD_WIDTH * GRAPH_SCALE_FACTOR);
+    var dotField = createGraphics(GRAPH_FIELD_LENGTH * GRAPH_SCALE_FACTOR, GRAPH_FIELD_WIDTH * GRAPH_SCALE_FACTOR);
+    for (var x = 0; x < GRAPH_FIELD_LENGTH + 1; x++) {
+        for (var y = 0; y < GRAPH_FIELD_WIDTH + 1; y++) {
+            dotField.stroke(192, 192, 192);
+            dotField.strokeWeight(1);
+
+            if (y % 4 == 0) {
+                dotField.stroke(127, 127, 255);
+            }
+            dotField.line(0, y * GRAPH_SCALE_FACTOR, GRAPH_FIELD_LENGTH * GRAPH_SCALE_FACTOR, y * GRAPH_SCALE_FACTOR);
+
+            dotField.stroke(192, 192, 192);
+
+            if (x % 4 == 0) {
+                dotField.stroke(127, 127, 255);
+            }
+            if ((x + 4) % 8 == 0) {
+                dotField.stroke(0, 0, 0);
+            }
+            dotField.line(x * GRAPH_SCALE_FACTOR, 0, x * GRAPH_SCALE_FACTOR, GRAPH_FIELD_WIDTH * GRAPH_SCALE_FACTOR);
+        }
+    }
+    //-Get dot to be somewhere in the middle of the graph
+    var fieldX = (dot.lefttoright + 4 + (FIELD_LENGTH / 2)) % GRAPH_FIELD_LENGTH;
+    var fieldY = (dot.fronttoback + (FIELD_WIDTH / 2)) % GRAPH_FIELD_WIDTH;
+    var translationX = 0;
+    var translationY = 0;
+
+    while (fieldX - 20 > 4) {
+        fieldX -= 8;
+        translationX -= 8;
+    }
+    while (fieldX - 20 < -4) {
+        fieldX += 8;
+        translationX += 8;
+    }
+    while (fieldY - 16 > 2) {
+        fieldY -= 4;
+        translationY -= 4;
+    }
+    while (fieldY - 16 < -2) {
+        fieldY += 4;
+        translationY += 4;
+    }
+
+    fieldY = GRAPH_FIELD_WIDTH - fieldY;
+
+    //-If there's (what counts as) a previous dot, then figure out where to put it
+    var previousFieldX = 0;
+    var previousFieldY = 0;
+    var drawPreviousDot = false;
+
+    if (previousDot != null && !sameFlag) {
+        var deltaX = dot.lefttoright - previousDot.lefttoright;
+        var deltaY = dot.fronttoback - previousDot.fronttoback;
+
+        if (deltaX <= GRAPH_FIELD_LENGTH && deltaY <= GRAPH_FIELD_WIDTH) {
+            drawPreviousDot = true;
+            previousFieldX = fieldX - deltaX;
+            previousFieldY = fieldY + deltaY;
+
+            while (previousFieldX > GRAPH_FIELD_LENGTH) {
+                fieldX -= 8;
+                previousFieldX -= 8;
+            }
+            while (previousFieldX < 0) {
+                fieldX += 8;
+                previousFieldX += 8;
+            }
+            while (previousFieldY > GRAPH_FIELD_WIDTH) {
+                fieldY -= 4;
+                previousFieldY -= 4;
+            }
+            while (previousFieldY < 0) {
+                fieldY += 4;
+                previousFieldY += 4;
+            }
+        }
+    }
+    //-Bound by field comes last
+    var distanceFromSide1Endzone = dot.lefttoright + (FIELD_LENGTH / 2);
+    var distanceFromSide2Endzone = FIELD_LENGTH - (dot.lefttoright + (FIELD_LENGTH / 2));
+    var distanceFromFrontSideline = dot.fronttoback + (FIELD_WIDTH / 2);
+    var distanceFromBackSideline = FIELD_WIDTH - (dot.fronttoback + (FIELD_WIDTH / 2));
+
+    var distanceFromLeftBound = fieldX;
+    var distanceFromRightBound = GRAPH_FIELD_LENGTH - fieldX;
+    var distanceFromTopBound = fieldY;
+    var distanceFromBottomBound = GRAPH_FIELD_WIDTH - fieldY;
+
+    while (distanceFromSide1Endzone < distanceFromLeftBound) {
+        fieldX -= 8;
+        previousFieldX -= 8;
+        distanceFromLeftBound -= 8;
+    }
+    while (distanceFromSide2Endzone < distanceFromRightBound) {
+        fieldX += 8;
+        previousFieldX += 8;
+        distanceFromRightBound -= 8;
+    }
+    while (distanceFromFrontSideline < distanceFromBottomBound) {
+        fieldY += 4;
+        previousFieldY += 4;
+        distanceFromBottomBound -= 4;
+    }
+    while (distanceFromBackSideline < distanceFromTopBound) {
+        fieldY -= 4;
+        previousFieldY -= 4;
+        distanceFromTopBound -= 4;
+    }
+
+    if (distanceFromSide1Endzone < 4) {
+        fieldX += 8;
+        previousFieldX += 8;
+    }
+    if (distanceFromSide2Endzone < 4) {
+        fieldX -= 8;
+        previousFieldX -= 8;
+    }
+
+    //-Draw hashes and sidelines
+    var nearestRef = dot.GetNearestFrontToBackReference();
+    var deviation = dot.GetDeviationFromFrontToBackReference();
+
+    var backSidelineY;
+    var backHashY;
+    var frontHashY;
+    var frontSidelineY;
+
+    switch (nearestRef) {
+        case BACK_SIDELINE:
+            backSidelineY = fieldY + deviation;
+            backHashY = backSidelineY + 32;
+            frontHashY = backHashY + 20;
+            frontSidelineY = frontHashY + 32;
+            break;
+        case BACK_HASH:
+            backHashY = fieldY + deviation;
+            backSidelineY = backHashY - 32;
+            frontHashY = backHashY + 20;
+            frontSidelineY = frontHashY + 32;
+            break;
+        case FRONT_HASH:
+            frontHashY = fieldY + deviation;
+            backHashY = frontHashY - 20;
+            backSidelineY = backHashY - 32;
+            frontSidelineY = frontHashY + 32;
+            break;
+        case FRONT_SIDELINE:
+            frontSidelineY = fieldY + deviation;
+            frontHashY = frontSidelineY - 32;
+            backHashY = frontHashY - 20;
+            backSidelineY = backHashY - 32;
+            break;
+    }
+
+    for (var x = 0; x < GRAPH_FIELD_LENGTH + 1; x++) {
+        for (var y = 0; y < GRAPH_FIELD_WIDTH + 1; y++) {
+            dotField.stroke(0, 0, 0);
+            dotField.strokeWeight(4);
+
+            if ((x + 4) % 8 == 0 && (y == frontHashY || y == backHashY)) {
+                dotField.line((x - 1) * GRAPH_SCALE_FACTOR, y * GRAPH_SCALE_FACTOR, (x + 1) * GRAPH_SCALE_FACTOR, y * GRAPH_SCALE_FACTOR);
+            }
+            if (y == frontSidelineY || y == backSidelineY) {
+                dotField.line(0, y * GRAPH_SCALE_FACTOR, GRAPH_FIELD_LENGTH * GRAPH_SCALE_FACTOR, y * GRAPH_SCALE_FACTOR);
+            }
+
+            //-TODO: Draw endzones
+        }
+    }
+
+    //-Draw dot(s)
+    dotField.strokeWeight(GRAPH_SCALE_FACTOR);
+
+    if (drawPreviousDot) {
+        dotField.stroke(0, 0, 0);
+        dotField.point(previousFieldX * GRAPH_SCALE_FACTOR, previousFieldY * GRAPH_SCALE_FACTOR);
+
+        dotField.strokeWeight(1);
+        dotField.line(previousFieldX * GRAPH_SCALE_FACTOR, previousFieldY * GRAPH_SCALE_FACTOR, fieldX * GRAPH_SCALE_FACTOR, fieldY * GRAPH_SCALE_FACTOR);
+
+        dotField.push();
+        var angle = Math.atan2(previousFieldY * GRAPH_SCALE_FACTOR - fieldY * GRAPH_SCALE_FACTOR, previousFieldX * GRAPH_SCALE_FACTOR - fieldX * GRAPH_SCALE_FACTOR);
+        var offset = GRAPH_SCALE_FACTOR;
+        dotField.translate(fieldX * GRAPH_SCALE_FACTOR, fieldY * GRAPH_SCALE_FACTOR);
+        dotField.rotate(angle - HALF_PI);
+        dotField.noFill();
+        dotField.triangle(-offset * 0.5, offset, offset * 0.5, offset, 0, -offset / 2);
+        dotField.pop();
+    }
+
+    dotField.stroke(255, 0, 0);
+    dotField.strokeWeight(GRAPH_SCALE_FACTOR);
+    dotField.point(fieldX * GRAPH_SCALE_FACTOR, fieldY * GRAPH_SCALE_FACTOR);
+
+    var yds = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0];
+    var ydLabels = [-1, -1, -1, -1, -1];
+    var occr = 0;
+    var ydIdx = 0;
+
+    for (var i = 0; i < yds.length; i++) {
+        if (yds[i] == dot.GetNearestYardLine()) {
+            occr++;
+            if (yds[i] == 50) {
+                ydIdx = i;
+                break;
+            }
+            if (dot.IsSide1()) {
+                ydIdx = i;
+                break;
+            }
+            else if (occr == 2) {
+                ydIdx = i;
+                break;
+            }
+        }
+    }
+
+    ydLabels[0] = yds[i - 2];
+    ydLabels[1] = yds[i - 1];
+    ydLabels[2] = yds[i - 0];
+    ydLabels[3] = yds[i + 1];
+    ydLabels[4] = yds[i + 2];
+
+    //-Make yard line number layouts
+    for (var i = 0; i < 5; i++) {
+        pg.rect((4 * GRAPH_SCALE_FACTOR) + (i * 8) * GRAPH_SCALE_FACTOR, (150 + GRAPH_FIELD_WIDTH * GRAPH_SCALE_FACTOR), 40, 40);
+
+        pg.textAlign(LEFT, TOP);
+        pg.textSize(30);
+        pg.text(ydLabels[i], (4 * GRAPH_SCALE_FACTOR) + (i * 8) * GRAPH_SCALE_FACTOR, (150 + GRAPH_FIELD_WIDTH * GRAPH_SCALE_FACTOR))
+    }
+
+    pg.image(dotField, 20, 140);
+
+    pg.save(performerLabel.label + " set " + dot.set + ".png");
+    image(pg, 0, 0);
+}
+
+function MakeDotBook() {
+    if (showMode) {
+        dotBookMode = !dotBookMode;
+        var bookPerformer = playManager.GetPerformerByLabel(document.getElementById("nMakeDotBook").value);
+        //for (var i = 0; i < bookPerformer.dots.length; i++) {
+        var i = stepCurrent;
+        var pDot = i > 0 ? bookPerformer.dots[i - 1] : null;
+        DotBookPage(bookPerformer.dots[i], pDot, bookPerformer);
+        //}
+    }
+}
+
+function HandleSlider(sliderVal) {
+    sliderCount = sliderVal;
+    document.getElementById("countSliderText").value = sliderCount;
+    drawing = true;
+}
+
+function HandleTextSlider(_textSliderVal) {
+    var textSliderVal = parseFloat(_textSliderVal);
+    if (textSliderVal == NaN) {
+        return;
+    }
+
+    if (textSliderVal < 1) {
+        sliderCount = 1;
+        document.getElementById("countSlider").value = sliderCount;
+    }
+    else if (textSliderVal > document.getElementById("countSlider").max) {
+        sliderCount = document.getElementById("countSlider").max;
+        document.getElementById("countSlider").value = sliderCount;
+    }
+    else {
+        sliderCount = textSliderVal;
+        document.getElementById("countSlider").value = sliderCount;
+    }
     drawing = true;
 }
